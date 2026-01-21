@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# uv
+uv.lock
+
+# Data files (exclude user audio/transcripts)
+data/*.wav
+data/*.mp3
+data/*.m4a
+data/*.json
+data/*.rttm
+!data/README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
