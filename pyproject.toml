@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Dictator - Simple STT tool to complement speeker"
 readme = "README.md"
 authors = [
-    { name = "Brian Hammond", email = "brian@caresense.com" }
+    { name = "Horatio Sans Serif", email = "horatio-sans-serif@users.noreply.github.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
