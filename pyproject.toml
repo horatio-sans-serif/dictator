@@ -1,0 +1,25 @@
+[project]
+name = "dictator"
+version = "0.1.0"
+description = "Dictator - Simple STT tool to complement speeker"
+readme = "README.md"
+authors = [
+    { name = "Brian Hammond", email = "brian@caresense.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "librosa==0.10.1",
+    "openai-whisper>=20250625,<20260101",
+    "pyannote-audio>=3.1.0,<4.0",
+    "resemble-enhance==0.0.1",
+    "scipy>=1.11.0,<1.15.0",
+    "soundfile>=0.12.1,<0.13.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+]
