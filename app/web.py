@@ -9,6 +9,7 @@ import bottle
 from app.transcribe import convert_to_mp3, transcribe
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 
 
 @bottle.route("/")
@@ -27,6 +28,11 @@ def transcribe_upload():
     if not upload:
         bottle.response.status = 400
         return {"error": "No file uploaded"}
+
+    content_length = bottle.request.content_length
+    if content_length and content_length > MAX_UPLOAD_BYTES:
+        bottle.response.status = 413
+        return {"error": "File too large (max 500 MB)"}
 
     suffix = Path(upload.filename or "audio.webm").suffix.lower() or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
@@ -50,4 +56,4 @@ def transcribe_upload():
 
 def run_server(port: int = 8377) -> None:
     print(f"Dictator web UI: http://localhost:{port}")
-    bottle.run(host="0.0.0.0", port=port, quiet=False)
+    bottle.run(host="127.0.0.1", port=port, quiet=False)

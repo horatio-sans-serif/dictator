@@ -151,7 +151,6 @@ def run_ui(
                 worker.request_stop()
                 break
 
-            time.sleep(0.05)
     except KeyboardInterrupt:
         worker.request_stop()
     finally:

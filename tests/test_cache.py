@@ -8,8 +8,10 @@ import pytest
 
 from app.cache import (
     CACHE_SCHEMA_VERSION,
+    cache_path_for,
     compute_file_hash,
     load_cache,
+    save_cache,
 )
 
 
@@ -91,3 +93,28 @@ class TestCacheLoading:
 
         result = load_cache(cache_file, "anyhash")
         assert result is None
+
+
+class TestSaveCache:
+    def test_save_and_load_roundtrip(self, tmp_path, sample_segments):
+        cache_file = tmp_path / "test_cache.json"
+        audio_hash = "abc123"
+        save_cache(cache_file, audio_hash, sample_segments)
+        assert cache_file.exists()
+        loaded = load_cache(cache_file, audio_hash)
+        assert loaded == sample_segments
+
+    def test_save_overwrites_existing(self, tmp_path, sample_segments):
+        cache_file = tmp_path / "test_cache.json"
+        save_cache(cache_file, "hash1", sample_segments)
+        new_segments = [{"start": 0.0, "end": 1.0, "speaker": 1, "text": "New"}]
+        save_cache(cache_file, "hash2", new_segments)
+        assert load_cache(cache_file, "hash1") is None
+        assert load_cache(cache_file, "hash2") == new_segments
+
+
+class TestCachePathFor:
+    def test_returns_json_path(self):
+        result = cache_path_for("abc123")
+        assert result.name == "abc123.json"
+        assert result.parent.name == "cache"

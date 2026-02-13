@@ -92,3 +92,18 @@ class TestMainServe:
         with patch.dict("sys.modules", {"app.web": mock_web}):
             main(["--serve"])
             mock_web.run_server.assert_called_once_with(port=8377)
+
+
+class TestStdinMode:
+    def test_empty_stdin_errors(self):
+        with patch("sys.stdin") as mock_stdin:
+            mock_stdin.buffer.read.return_value = b""
+            with pytest.raises(SystemExit):
+                main([])
+
+    def test_stdin_size_limit(self):
+        from app.cli import MAX_STDIN_BYTES
+        with patch("sys.stdin") as mock_stdin:
+            mock_stdin.buffer.read.return_value = b"\x00" * (MAX_STDIN_BYTES + 1)
+            with pytest.raises(SystemExit):
+                main([])

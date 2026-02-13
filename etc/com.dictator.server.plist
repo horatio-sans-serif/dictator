@@ -7,24 +7,13 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>__UV_PATH__</string>
-        <string>run</string>
-        <string>python</string>
-        <string>-m</string>
-        <string>app.main</string>
-        <string>--serve</string>
-        <string>--port</string>
-        <string>8377</string>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>export MISTRAL_API_KEY=$(security find-generic-password -s dictator-mistral-api-key -w) &amp;&amp; exec __UV_PATH__ run python -m app.main --serve --port 8377</string>
     </array>
 
     <key>WorkingDirectory</key>
     <string>__PROJECT_DIR__</string>
-
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>MISTRAL_API_KEY</key>
-        <string>__MISTRAL_API_KEY__</string>
-    </dict>
 
     <key>RunAtLoad</key>
     <true/>

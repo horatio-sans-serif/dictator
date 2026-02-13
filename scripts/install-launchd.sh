@@ -32,11 +32,15 @@ if launchctl list | grep -q com.dictator.server; then
     launchctl unload "$PLIST_DST" 2>/dev/null || true
 fi
 
-# Copy and customize plist
+# Store API key in keychain (avoids plaintext in plist)
+echo "Storing API key in keychain..."
+security delete-generic-password -s "dictator-mistral-api-key" 2>/dev/null || true
+security add-generic-password -s "dictator-mistral-api-key" -a "$USER" -w "$MISTRAL_API_KEY"
+
+# Copy and customize plist (API key loaded from keychain at runtime)
 echo "Installing launchd plist..."
 sed -e "s|__UV_PATH__|$UV_PATH|g" \
     -e "s|__PROJECT_DIR__|$PROJECT_DIR|g" \
-    -e "s|__MISTRAL_API_KEY__|$MISTRAL_API_KEY|g" \
     "$PLIST_SRC" > "$PLIST_DST"
 
 # Load the service

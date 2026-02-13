@@ -35,12 +35,15 @@ def convert_to_mp3(audio_path: Path) -> Path:
         return audio_path
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg is required to convert audio files")
-    out = Path(tempfile.mktemp(suffix=".mp3"))
+    fd, out_name = tempfile.mkstemp(suffix=".mp3")
+    os.close(fd)
+    out = Path(out_name)
     result = subprocess.run(
         ["ffmpeg", "-y", "-i", str(audio_path), "-q:a", "2", str(out)],
         capture_output=True,
     )
     if result.returncode != 0:
+        out.unlink(missing_ok=True)
         raise RuntimeError(f"ffmpeg conversion failed: {result.stderr.decode()}")
     return out
 

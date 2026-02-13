@@ -11,6 +11,8 @@ from typing import List, Optional
 from app.transcribe import validate_audio_path
 from app.ui import print_transcript, run_transcribe_only, run_ui
 
+MAX_STDIN_BYTES = 100 * 1024 * 1024  # 100 MB
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -62,7 +64,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         import atexit
 
-        audio_data = sys.stdin.buffer.read()
+        audio_data = sys.stdin.buffer.read(MAX_STDIN_BYTES + 1)
+        if len(audio_data) > MAX_STDIN_BYTES:
+            parser.error(f"Stdin data exceeds {MAX_STDIN_BYTES // (1024 * 1024)} MB limit")
         if not audio_data:
             parser.error("No audio data received from stdin")
 

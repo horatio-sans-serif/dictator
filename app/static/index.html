@@ -242,7 +242,13 @@
             audio: true,
           });
           recordedChunks = [];
-          mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+          const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+            ? "audio/webm"
+            : MediaRecorder.isTypeSupported("audio/mp4")
+              ? "audio/mp4"
+              : "";
+          const options = mimeType ? { mimeType } : {};
+          mediaRecorder = new MediaRecorder(stream, options);
 
           mediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0) recordedChunks.push(e.data);
@@ -250,9 +256,11 @@
 
           mediaRecorder.onstop = () => {
             stream.getTracks().forEach((t) => t.stop());
-            const blob = new Blob(recordedChunks, { type: "audio/webm" });
-            const file = new File([blob], "recording.webm", {
-              type: "audio/webm",
+            const recType = mediaRecorder.mimeType || "audio/webm";
+            const ext = recType.includes("mp4") ? "mp4" : "webm";
+            const blob = new Blob(recordedChunks, { type: recType });
+            const file = new File([blob], `recording.${ext}`, {
+              type: recType,
             });
             uploadAndTranscribe(file);
           };

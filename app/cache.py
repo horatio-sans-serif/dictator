@@ -3,32 +3,41 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 BASE = Path(__file__).resolve().parent.parent
 DATA = BASE / "data"
 CACHE_DIR = DATA / "cache"
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_SCHEMA_VERSION = 6
 
-_file_hash_cache: Dict[Tuple[str, float, int], str] = {}
+_file_hash_cache: OrderedDict[Tuple[str, float, int], str] = OrderedDict()
+_file_hash_lock = threading.Lock()
 _FILE_HASH_CACHE_MAX_SIZE = 100
+
+
+def _ensure_cache_dir() -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def compute_file_hash(path: Path) -> str:
     stat = path.stat()
     cache_key = (str(path), stat.st_mtime, stat.st_size)
-    if cache_key in _file_hash_cache:
-        return _file_hash_cache[cache_key]
+    with _file_hash_lock:
+        if cache_key in _file_hash_cache:
+            _file_hash_cache.move_to_end(cache_key)
+            return _file_hash_cache[cache_key]
     digest = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
     result = digest.hexdigest()
-    if len(_file_hash_cache) >= _FILE_HASH_CACHE_MAX_SIZE:
-        _file_hash_cache.pop(next(iter(_file_hash_cache)))
-    _file_hash_cache[cache_key] = result
+    with _file_hash_lock:
+        _file_hash_cache[cache_key] = result
+        if len(_file_hash_cache) > _FILE_HASH_CACHE_MAX_SIZE:
+            _file_hash_cache.popitem(last=False)
     return result
 
 
@@ -56,6 +65,7 @@ def load_cache(cache_file: Path, audio_hash: str) -> Optional[List[Dict[str, obj
 
 
 def save_cache(cache_file: Path, audio_hash: str, segments: List[Dict[str, object]]) -> None:
+    _ensure_cache_dir()
     cache_data = {
         "schema_version": CACHE_SCHEMA_VERSION,
         "audio_hash": audio_hash,
