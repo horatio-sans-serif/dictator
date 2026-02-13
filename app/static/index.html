@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dictator</title>
+    <style>
+      :root {
+        --bg: #1a1a2e;
+        --surface: #16213e;
+        --border: #0f3460;
+        --text: #e0e0e0;
+        --muted: #888;
+        --accent: #e94560;
+        --accent2: #0f3460;
+        --speaker-1: #4ecdc4;
+        --speaker-2: #ff6b6b;
+        --speaker-3: #ffe66d;
+        --speaker-4: #a29bfe;
+        --speaker-5: #fd79a8;
+        --speaker-6: #55efc4;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+        margin-bottom: 1.5rem;
+        font-weight: 600;
+      }
+
+      .controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      #drop-zone {
+        width: 100%;
+        max-width: 700px;
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 3rem 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+        margin-bottom: 1.5rem;
+      }
+
+      #drop-zone.active {
+        border-color: var(--accent);
+        background: rgba(233, 69, 96, 0.08);
+      }
+
+      #drop-zone p {
+        color: var(--muted);
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      .btn {
+        padding: 0.6rem 1.4rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        cursor: pointer;
+        font-weight: 500;
+        transition: opacity 0.15s;
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .btn-record {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-record.recording {
+        animation: pulse 1s infinite;
+      }
+
+      .btn-file {
+        background: var(--accent2);
+        color: #fff;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+      }
+
+      #file-input {
+        display: none;
+      }
+
+      #status {
+        color: var(--muted);
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+        min-height: 1.4em;
+      }
+
+      #results {
+        width: 100%;
+        max-width: 700px;
+      }
+
+      .segment {
+        background: var(--surface);
+        border-radius: 8px;
+        padding: 1rem 1.2rem;
+        margin-bottom: 0.6rem;
+        border-left: 4px solid var(--border);
+      }
+
+      .segment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.4rem;
+        font-size: 0.85rem;
+      }
+
+      .speaker-label {
+        font-weight: 600;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .timestamp {
+        color: var(--muted);
+        font-family: monospace;
+        font-size: 0.8rem;
+      }
+
+      .segment-text {
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dictator</h1>
+
+    <div id="drop-zone">
+      <strong>Drop audio/video file here</strong>
+      <p>or use the buttons below</p>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-file" id="btn-file">Choose File</button>
+      <button class="btn btn-record" id="btn-record">Record Mic</button>
+      <input type="file" id="file-input" accept="audio/*,video/*" />
+    </div>
+
+    <div id="status"></div>
+    <div id="results"></div>
+
+    <script>
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
+      const btnFile = document.getElementById("btn-file");
+      const btnRecord = document.getElementById("btn-record");
+      const statusEl = document.getElementById("status");
+      const resultsEl = document.getElementById("results");
+
+      const speakerColors = [
+        "var(--speaker-1)",
+        "var(--speaker-2)",
+        "var(--speaker-3)",
+        "var(--speaker-4)",
+        "var(--speaker-5)",
+        "var(--speaker-6)",
+      ];
+
+      let mediaRecorder = null;
+      let recordedChunks = [];
+
+      // Drag and drop
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("active");
+      });
+      dropZone.addEventListener("dragleave", () =>
+        dropZone.classList.remove("active"),
+      );
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("active");
+        const file = e.dataTransfer.files[0];
+        if (file) uploadAndTranscribe(file);
+      });
+      dropZone.addEventListener("click", () => fileInput.click());
+
+      // File picker
+      btnFile.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files[0]) uploadAndTranscribe(fileInput.files[0]);
+      });
+
+      // Mic recording
+      btnRecord.addEventListener("click", async () => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+          btnRecord.textContent = "Record Mic";
+          btnRecord.classList.remove("recording");
+          return;
+        }
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          recordedChunks = [];
+          mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedChunks.push(e.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            stream.getTracks().forEach((t) => t.stop());
+            const blob = new Blob(recordedChunks, { type: "audio/webm" });
+            const file = new File([blob], "recording.webm", {
+              type: "audio/webm",
+            });
+            uploadAndTranscribe(file);
+          };
+
+          mediaRecorder.start();
+          btnRecord.textContent = "Stop Recording";
+          btnRecord.classList.add("recording");
+          statusEl.textContent = "Recording...";
+        } catch (err) {
+          statusEl.textContent = "Mic access denied: " + err.message;
+        }
+      });
+
+      async function uploadAndTranscribe(file) {
+        statusEl.textContent = `Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)...`;
+        resultsEl.innerHTML = "";
+        btnFile.disabled = true;
+        btnRecord.disabled = true;
+
+        const form = new FormData();
+        form.append("file", file);
+
+        try {
+          statusEl.textContent = "Transcribing...";
+          const resp = await fetch("/transcribe", {
+            method: "POST",
+            body: form,
+          });
+          const data = await resp.json();
+
+          if (!resp.ok) {
+            statusEl.textContent = "Error: " + (data.error || "Unknown error");
+            return;
+          }
+
+          statusEl.textContent = `Done - ${data.segments.length} segments`;
+          renderSegments(data.segments);
+        } catch (err) {
+          statusEl.textContent = "Network error: " + err.message;
+        } finally {
+          btnFile.disabled = false;
+          btnRecord.disabled = false;
+        }
+      }
+
+      function fmtTime(s) {
+        const total = Math.round(Math.max(0, s));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const sec = total % 60;
+        const pad = (n) => String(n).padStart(2, "0");
+        return h ? `${pad(h)}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+      }
+
+      function renderSegments(segments) {
+        resultsEl.innerHTML = "";
+        for (const seg of segments) {
+          const color = speakerColors[(seg.speaker - 1) % speakerColors.length];
+          const div = document.createElement("div");
+          div.className = "segment";
+          div.style.borderLeftColor = color;
+          div.innerHTML = `
+      <div class="segment-header">
+        <span class="speaker-label" style="color:${color}">Speaker ${seg.speaker}</span>
+        <span class="timestamp">${fmtTime(seg.start)} - ${fmtTime(seg.end)}</span>
+      </div>
+      <div class="segment-text">${escapeHtml(seg.text)}</div>
+    `;
+          resultsEl.appendChild(div);
+        }
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    </script>
+  </body>
+</html>
