@@ -1,25 +1,31 @@
 [project]
 name = "dictator"
-version = "0.1.0"
-description = "Dictator - Simple STT tool to complement speeker"
+version = "0.2.0"
+description = "Dictator - Speech transcription with speaker diarization via Voxtral API"
 readme = "README.md"
 authors = [
     { name = "Horatio Sans Serif", email = "horatio-sans-serif@users.noreply.github.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "librosa==0.10.1",
-    "openai-whisper>=20250625,<20260101",
-    "pyannote-audio>=3.1.0,<4.0",
-    "resemble-enhance==0.0.1",
-    "scipy>=1.11.0,<1.15.0",
-    "soundfile>=0.12.1,<0.13.0",
+    "bottle>=0.13.2",
+    "mistralai>=1.6.0",
 ]
+
+[project.scripts]
+dictator = "app.cli:main_cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
     "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
+    "webtest>=3.0.0",
 ]

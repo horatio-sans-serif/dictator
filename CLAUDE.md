@@ -1,54 +1,58 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `app/main.py` hosts the CLI entrypoint, curses UI, and transcription pipeline. Keep UI helpers at the bottom and processing helpers near the top so newcomers can scan setup → worker → interface in order.
-- `data/` is reserved for user assets. The app writes cache files to `data/cache/<audio_sha>.json`; avoid committing personal audio.
-- Configuration lives in `pyproject.toml`. Add optional tooling under `[dependency-groups.dev]` instead of the main dependency list.
+
+- `app/cli.py` hosts the CLI entrypoint, argument parsing, and dispatch to UI/web/transcribe-only modes.
+- `app/transcribe.py` contains the Voxtral API integration, audio format validation, and ffmpeg conversion.
+- `app/cache.py` handles SHA-256 file hashing and JSON cache load/save with schema versioning.
+- `app/player.py` wraps ffplay for thread-safe audio playback with pause/resume.
+- `app/worker.py` runs transcription in a background thread, communicating via a message queue.
+- `app/ui.py` implements the curses TUI, CLI streaming mode, and screen rendering.
+- `app/web.py` is the Bottle web server with file upload and transcription endpoints.
+- `app/static/index.html` is the browser UI with drag-and-drop and mic recording.
+- `app/main.py` is a backward-compatibility shim re-exporting symbols from the above modules.
+- `app/__main__.py` enables `python -m app` invocation.
+- `data/` is reserved for user assets. The app writes cache files to `data/cache/<audio_sha>.json`.
+- `etc/` contains the launchd plist template for daemon mode.
+- `scripts/` contains install/uninstall scripts for the launchd service.
+- Configuration lives in `pyproject.toml`. Add optional tooling under `[dependency-groups.dev]`.
 
 ## Build, Test, and Development Commands
-- `uv sync` or `pip install -e .` installs runtime dependencies (Whisper, librosa, pyannote).
-- `uv run python -m app.main path/to/audio.m4a` runs the application. Use `--model tiny` when smoke testing to minimise GPU/CPU load.
-  - The default Whisper checkpoint is `large-v3`; expect long downloads the first time. Override with `--model` (e.g., `--model tiny`) for quicker dev loops.
-  - `-T/--transcribe-only` bypasses curses and prints segments directly; keep CLI docs in sync when changing output format.
-  - `--preset` toggles Soap-inspired enhancement curves (see `MIC_PRESETS`) including the new `iphone` preset.
-  - `--enhancer` switches between the Soap chain (`soap`) and the Resemble Enhance neural backend (`resemble`); document any behavioural changes when touching either path.
-  - `--no-enhancement` bypasses the processing chain entirely if users want the raw file.
-  - `--debug-enhanced-compare` writes a WAV that alternates original/enhanced 5 s chunks for QA, complete with a high beep before each enhanced segment and a double-beep separator.
-  - `--debug-enhanced-compare-duration` controls how many seconds of audio land in that compare WAV (0 = full track; default 30 s).
-- `uv run pytest` executes the regression suite:
-  - `tests/test_assets.py` confirms every `test/assets/*.m4a` clip has a matching `.txt` transcript.
-  - `tests/test_compare_audio.py` verifies the debug compare exporter enforces duration caps and audible beeps.
-  - `tests/test_transcription_quality.py` re-runs Whisper Tiny on baseline vs. enhanced audio for each labeled asset, comparing word error rate and cosine similarity to ensure enhancements never regress transcripts beyond the per-clip tolerances. Update the tolerances or fixture transcripts in the same commit when enhancement behaviour changes.
+
+- `uv sync` installs runtime dependencies (mistralai, bottle).
+- `uv run dictator path/to/audio.m4a` runs the TUI.
+- `uv run dictator path/to/audio.m4a -T` streams diarized transcript to stdout.
+- `uv run dictator --serve` starts the web server on port 8377.
+- `uv run python -m pytest` runs the test suite.
+
+## Environment Variables
+
+- `MISTRAL_API_KEY` (required) - Mistral API key for Voxtral transcription.
+
+## Architecture
+
+- Transcription uses Mistral's Voxtral API (`voxtral-mini-latest` model) with `diarize=True`.
+- The `transcribe()` function in `app/transcribe.py` does a lazy import of `mistralai` to avoid requiring the API key at import time.
+- Non-native audio formats (m4a, aac, wma, aiff) are converted to mp3 via ffmpeg before upload.
+- `TranscriptionWorker` in `app/worker.py` runs transcription in a background thread, communicating via a message queue.
+- Cache is keyed by SHA-256 hash of the audio file. Cache schema version bumps invalidate old entries.
+- Module dependency graph: cli -> ui -> worker -> transcribe + cache; player is standalone.
 
 ## Coding Style & Naming Conventions
-- Follow PEP 8 with 4-space indentation. Prefer descriptive helper names (`format_timestamp`, `segment_row_count`) over abbreviations.
+
+- Follow PEP 8 with 4-space indentation.
 - Keep user-facing strings concise; UI lines should fit an 80-column terminal.
-- When adding modules, expose CLI entrypoints through `python -m package.module` instead of baking shebang scripts.
-- Use f-strings for formatting and avoid bare `print` debugging inside worker threads—log through the UI queue.
+- Use f-strings for formatting.
+- Log through the UI queue in worker threads, not bare `print`.
 
 ## Testing Guidelines
-- Organize tests by feature area (`tests/test_cli.py`, `tests/test_transcription.py`, etc.).
-- Use `pytest` markers already declared in `pytest.ini` (`@pytest.mark.slow`, `@pytest.mark.integration`) to separate device-heavy runs.
-- Mock Whisper/Pyannote calls for unit tests; reserve real-model executions for `slow` suites with cached fixtures.
-- Ensure new behaviour toggles (e.g., playback fallbacks) ship with regression tests that assert user-visible messages.
-- When adding new reference clips to `test/assets/`, include a ground-truth `.txt` transcript and extend `AUDIO_CASES` in `tests/test_transcription_quality.py` with preset + margin values so CI watches for real transcription changes.
-- Keep test commands documented with their `uv run ...` prefix so contributors don’t skip the project venv.
+
+- Tests mock the Voxtral API via `patch.dict("sys.modules", {"mistralai": fake_mod})` for the lazy import.
+- Use `webtest.TestApp` for web endpoint tests.
+- Tests run without API keys and complete in under a second.
+- Organize tests by feature area (`test_cli.py`, `test_cache.py`, `test_transcribe.py`, `test_web.py`).
 
 ## Commit & Pull Request Guidelines
-- Write imperative, prefix-style commits (`feat: stream segments during diarization`, `fix: guard ffplay errors`). Squash noisy WIP commits before raising a PR.
-- PRs should describe motivation, outline UI or UX shifts, and link related issues. Include terminal recordings or asciicasts when changing interactive flows.
-- Document new CLI flags or environment variables in `README.md` and `AGENTS.md` as part of the same change.
 
-## Configuration & Troubleshooting Tips
-- Whisper downloads models to the default cache (`~/.cache/whisper`). Mention this if a change alters model sizes or defaults.
-- Audio enhancement writes mono 16-bit WAV copies to `data/cache/<hash>-enhanced-<backend>-<preset>-vX.wav`; reuse the helper in `app/main.py` when adding new preprocessing steps so cache keys stay consistent with backend + preset metadata.
-- The Resemble Enhance backend downloads its weights via `git` + `git-lfs` into `site-packages/resemble_enhance/model_repo`; call that out in docs when changing its behaviour or prerequisites.
-- The enhancement chain now includes dynamic compression tuned for human speech (roughly ages 13–60); adjust `apply_dynamic_compression` if future work needs different targets.
-- Mic bump suppression cross-fades sub-80 ms spikes (see `suppress_mic_bumps`); keep it in sync with `remove_transient_peaks` when tuning thresholds.
-- Soap-style presets live in `MIC_PRESETS`; update `--preset` handling and cache metadata whenever you add/remove presets.
-- Preset values only affect the Soap backend—if you add new Resemble modes, gate Soap-specific options accordingly so cache metadata stays truthful.
-- Audio playback now defaults to the enhanced WAV so users hear exactly what Whisper ingests; keep `AudioPlayer.set_audio_path` in sync if you change preprocessing.
-- Cache metadata now encodes the Whisper model, language, enhancement enabled flag, version, and preset—bump `CACHE_SCHEMA_VERSION` when altering compatibility rules.
-- Pyannote diarization now feeds an in-memory waveform to avoid torchcodec/ffmpeg dylib issues; prefer extending that path before adding new system requirements.
-- CLI preloads Whisper/pyannote before curses starts so download output remains visible; keep that flow intact when touching `prepare_dependencies`/`run_ui`.
-- If playback support changes, note any `ffmpeg` requirements and test on macOS + Linux at minimum.
+- Write imperative, prefix-style commits (`feat: add web UI`, `fix: handle empty segments`).
+- Document new CLI flags or environment variables in `README.md` and this file.
