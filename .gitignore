@@ -12,13 +12,15 @@ wheels/
 # uv
 uv.lock
 
-# Data files (exclude user audio/transcripts)
+# Data files
 data/*.wav
 data/*.mp3
 data/*.m4a
-data/*.json
 data/*.rttm
-!data/README.md
+data/cache/
+
+# Environment secrets
+.envrc
 
 # IDE
 .vscode/
